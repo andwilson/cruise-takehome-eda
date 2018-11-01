@@ -72,6 +72,7 @@ library(scales)
 library(reticulate)
 use_python("/Users/andrewwilson/anaconda/bin/python", required=TRUE)
 #library(officer)
+library(lubridate)
 library(tidyverse) # make sure piping function loaded last
 #library(magrittr) # always have piping available
 
