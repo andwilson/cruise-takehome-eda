@@ -88,7 +88,6 @@ df <- df_raw %>%
   mutate(time_cat = ifelse(ride_mins < 45, "short", "long")) %>%
   mutate(price_cat = ifelse(price < 4, "cheap", "expensive"))
 
-
 ############################
 ## exploratory data analysis
 

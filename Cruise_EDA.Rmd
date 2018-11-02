@@ -31,7 +31,6 @@ _Table schema description:_
 
 # Executive summary
 
-# Methodology
 
 ***
 # Setup, load, and clean data
@@ -204,7 +203,7 @@ kable(df_misses_cars, booktabs = TRUE,
 
 ```
 
-### Business actions
+### Business actions:
 Ryde Automation should make an effort to better understand _why_ near misses occur.  Since most of the rides are in SF (not South SF), it makes sense that all near misses occur there.  It also makes sense that near misses always occur on "long" rides (>1hr), but it should be investigated given a larger data set to see if this is always the case.  Not only are near misses endangering your passengers, but they are also the cause of 85% of 1 star ratings (13/15).  The best way to understand why near misses occur is to look more carefully at the `Superman` car, since it is responsible for 3/4 of all near misses.  Given more data about this car, we could dig in to better understand the underlying issues to prevent them from happening in other cars.
 
 # Ratings
@@ -236,7 +235,12 @@ ggplot(df, aes(as.integer(rating), ride_mins)) +
 
 ```
 
+### Business actions:
+It's clear that Superman is getting 1 star ratings because of its near misses, which should be looked into.  All other ratings are distributed relatively evenly between cars (and amongst other factors), but the Hulk is doing particularly well.  It might be worth investigating exactly what the Hulk is doing that gets it such glowing ratings.  Not much more can be derived from this data set, but it might be worth understanding how to get customers to up their ratings from 3 stars to 4 stars.
+
 # Utilization
+
+## Introduction and methodology
 
 Utilization is a key metric for a ride sharing company, as it determines how much free capacity is available.  This enables the company to increase revenues without increasing capital expenditures (extra profit!).  In this case, I calculated utilization as the number of seats taken by riders divided by the total number of seats (5 per car) for any given time period.
 
@@ -251,15 +255,16 @@ To begin, I created a visualization of individual ride times for a single car wi
 
 ```{r}
 
-# visualize a few rides for a single car
+# filter to one car for a small period of time
 df_hulk <- df %>% 
   filter(car_id == "hulk") %>%
   filter(start_time < ymd_hms("2018-10-02 6:00:00")) %>%
-  select(start_time, end_time, ride_mins, num_riders)
-
-df_hulk %>%
   mutate(ride_id = row_number()) %>%
-  gather("startORend", "time", 1:2) %>%
+  select(ride_id, start_time, end_time, ride_mins, num_riders)
+
+# visualize a few rides for a single car
+df_hulk %>%
+  gather("startORend", "time", 2:3) %>%
   arrange(ride_id) %>%
   ggplot(aes(time, ride_id, color=as.character(ride_id))) + 
   geom_point() + 
@@ -269,18 +274,28 @@ df_hulk %>%
      y="Ride ID", 
      title="Ride start and end times for Hulk before 6AM")
 
+# print table of first 5 rides
+kable(head(mutate(df_hulk, ride_mins = round(ride_mins))), booktabs = TRUE,
+      caption="Superman has three quarters of the near misses")
+
 
 
 ```
 
+### Algorithm approach
 
+From the chart and the table, we can see that there in fact are overlapping rides, so people do get in and out of the car.  However, when we look at the table we see that ride 3 had 5 people, and ride 4 started within that time period, also with 5 people.  I'm unsure if this is an error in the data, or if it is recorded correctly, so I will make some assumptions about how to look at the weighted utilization over time given overlapping rides with differing numbers of people.
+
+I decided to create an algorithm, using Python (easier build algorithms and read code), that outputs a flattened version of the rides over time (no overlap).  It calculates the average weighted number of people in the ride over a given time period, and also adds in time with "0" riders for the gaps inbetween rides.  The code for this algorithm can be seen below:
 
 ``` {r}
 
+# select only necessary items and sort by car ID
 df_u <- df %>% 
   select(car_id, start_time, end_time, ride_mins, num_riders) %>%
   arrange(car_id)
 
+# create vector lists of each feature to prepare for transformation in python
 car_id <- df_u$car_id
 start_time <- period_to_seconds(seconds(df_u$start_time))
 end_time <- period_to_seconds(seconds(df_u$end_time))
@@ -302,7 +317,7 @@ for c, s, e, m, n in zip(r.car_id, r.start_time, r.end_time, r.ride_mins, r.num_
     "num_riders": n
   })
 
-# create a function to find average of a block of rides with > 0 riders
+# create a function to find weighted average riders of a block of rides
 def avg_num_riders(rides):
   weighted_riders = 0
   total_mins = 0
@@ -314,11 +329,6 @@ def avg_num_riders(rides):
   #print(average_riders)
   return average_riders
     
-
-```
-
-``` {python}
-
 # iterate over rides array to build a new array with no overlap
 rides_flattened = []
 ride_sequence = [rides[0]]
@@ -347,8 +357,6 @@ for i in range(len(rides)-1):
     earliest_start_time = rides[i+1]["start_time"]
     latest_end_time = rides[i+1]["end_time"]
     ride_sequence = [rides[i+1]]
-      
-print(len(rides_flattened))
 
 # create individual lists to transform back into an R dataframe
 car_id_flattened = []
@@ -365,6 +373,7 @@ for i in range(len(rides_flattened)):
 
 ``` {r}
 
+# convert Python lists back into R lists
 start_time_flattened_POSXct = as.POSIXct(py$start_time_flattened, 
                                          tz="UTC", 
                                          origin = "1970-01-01")
@@ -372,15 +381,52 @@ end_time_flattened_POSXct = as.POSIXct(py$end_time_flattened,
                                        tz="UTC", 
                                        origin = "1970-01-01")
 
+# build an R data frame from the lists
 df_uf <- data.frame("car_id" = py$car_id_flattened, 
                     "start_time" = start_time_flattened_POSXct, 
                     "end_time" = end_time_flattened_POSXct, 
                     "num_riders" = py$num_riders_flattened) %>%
   mutate(ride_mins = as.double(end_time - start_time)/60)
 
-glimpse(df_uf)
+# filter to one car for a small period of time
+df_hulk2 <- df_uf %>% 
+  filter(car_id == "hulk") %>%
+  filter(start_time < ymd_hms("2018-10-02 6:00:00")) %>%
+  mutate(ride_id = row_number()) %>%
+  select(ride_id, start_time, end_time, ride_mins, num_riders)
+
+# visualize a few rides for a single car
+df_hulk2 %>%
+  gather("startORend", "time", 2:3) %>%
+  arrange(ride_id) %>%
+  ggplot(aes(time, ride_id, color=as.character(ride_id))) + 
+  geom_point() + 
+  geom_line() +
+  guides(color=FALSE) +
+  labs(x="Time", 
+     y="Ride ID", 
+     title="Flattened rides for Hulk before 6AM")
+
+# print table of first 5 rides
+kable(head(mutate(df_hulk2, ride_mins = round(ride_mins))), booktabs = TRUE,
+      caption="Superman has three quarters of the near misses")
+
+# visualize the Hulk average number of riders for a limited time period 
+ggplot(df_hulk2, aes(start_time, num_riders)) + 
+  geom_step() + 
+  labs(x="Time", 
+     y="Weighted average # of riders", 
+     title="Average # of riders over time (with in-between)")
 
 ```
+
+### Algorithmic outcome
+
+It can be seen that the Python algorithm worked as expected, and it outputted a flattened list or rides over time, including in-between times.  This flattened list can now be used to accurately generate a number of utilization metrics and visulizations.  The average utilization over time is 48% (keeping in mind that this is by the total number of seats).  
+
+## Results and recommendations
+
+### Utilization charts:
 
 ``` {r}
 
@@ -395,14 +441,16 @@ df_uf_car <- df_uf %>%
             avg_utilization = avg_num_riders / 5,
             percent_time_between_rides = sum(ride_mins[num_riders==0])/sum(ride_mins))
 
+# visualize time between rides (wasted time with 0 people)
 ggplot(df_uf_car, aes(fct_reorder(car_id, percent_time_between_rides), percent_time_between_rides, fill=car_id)) + 
   geom_bar(stat="identity") +
   coord_flip() +
   scale_fill_brewer(palette="Set1") +
-  labs(x="Total Gross Sales ($, log scale)", 
-       y="Total Gross Margin", 
-       color="Margin (%)", 
-       title="Gross sales and margins aggregated by account")
+  guides(fill=FALSE) +
+  scale_y_continuous(labels = percent) +
+  labs(x="Hour of day", 
+       y="% of time in-between rides", 
+       title="Percentage of time between rides (utilization of 0)")
 
 # average utilization per hour per car (based on total # of seats available)
 df_uf %>% mutate(hour = hour(start_time)) %>%
@@ -413,15 +461,31 @@ df_uf %>% mutate(hour = hour(start_time)) %>%
   ggplot(aes(hour, avg_utilization, color=car_id)) + 
     geom_step() + 
     facet_wrap(~car_id) +
-    scale_color_brewer(palette="Set1")
+    scale_color_brewer(palette="Set1") +
+    guides(color=FALSE) +
+    scale_y_continuous(labels = percent) +
+    labs(x="Car", 
+         y="Avg % utilization", 
+         title="Average hourly utilization for each car")
 
 # average utilization per 
-ggplot(df_uf_car, aes(fct_reorder(car_id, avg_utilization), avg_utilization, fill=car_id)) + 
+ggplot(df_uf_car, aes(fct_reorder(car_id, avg_utilization), 
+                      avg_utilization, 
+                      fill=car_id)) + 
   geom_bar(stat="identity") +
   coord_flip() +
-  scale_fill_brewer(palette="Set1")
+  scale_fill_brewer(palette="Set1") +
+  guides(fill=FALSE) +
+  scale_y_continuous(labels = percent) +
+  labs(x="Average utilization % of seats", 
+       y="Car", 
+       title="Average utilization of each car (by seats)")
 
 ```
+
+### Business actions:
+What originally seemed like high utilization turned out to actually be a lot of empty seats once we restructured the data.  There are no definitive trends in utilization over time, nor is any one car significantly higher than any other.  Scarecrow had the highest utilization rate, at about 60%; and Joker had the lowest, at about 38%.  There is also quite a lot of lost time in-between rides, with 38% of its time with zero passengers and with the Hulk only spending 18% of its time inbetween passengers.  Overall, this means that there is clearly room for route optimization, and for better understanding how many people will be getting into a car any any given time in order to maximize utilization.  As we'll see in the next section, improving utilization makes a much bigger impact if pricing is calculated more dynamically and intelligently.
+
 
 # Pricing
 
@@ -430,8 +494,4 @@ ggplot(df_uf_car, aes(fct_reorder(car_id, avg_utilization), avg_utilization, fil
 
 
 ```
-
-# Recommended actions and conclusion
-
-# Next steps
 
