@@ -238,11 +238,44 @@ ggplot(df, aes(as.integer(rating), ride_mins)) +
 
 # Utilization
 
-Utilization is a key metric for a ride sharing company, as it determines how much free capacity is available to fill up.  This enables the company to increase revenues without increasing capital expenditures (extra profit!).  In this case, I calculated utilization as the number of used seats divided by the total number of seats (5 per car) for any given time period.
+Utilization is a key metric for a ride sharing company, as it determines how much free capacity is available.  This enables the company to increase revenues without increasing capital expenditures (extra profit!).  In this case, I calculated utilization as the number of seats taken by riders divided by the total number of seats (5 per car) for any given time period.
 
-Unfortunately, calculating utilization is not always as easy as it seems, and it's certainly the case with this data set.  There are a few problems that we'll have to deal with in order to get to an accurate utilization number.
+Unfortunately, calculating utilization is not always as easy as it seems, and it's certainly the case with this data set.  There are a few problems that we'll have to deal with in order to get to an accurate utilization number:
+
+*   Account for time in-between rides, where there are 0 riders
+*   Understand how and when rides overlap with one another
+*   Determine how to calculate utilization as riders get in and out of a car
+*   Do this analysis for each car, individually and in aggregate
+
+To begin, I created a visualization of individual ride times for a single car within a small time frame.  I wanted to better understand how rides overlapped, and how much time there typically was inbetween rides.  I also created a table to see the accompanying number of riders (`num_riders`).
 
 ```{r}
+
+# visualize a few rides for a single car
+df_hulk <- df %>% 
+  filter(car_id == "hulk") %>%
+  filter(start_time < ymd_hms("2018-10-02 6:00:00")) %>%
+  select(start_time, end_time, ride_mins, num_riders)
+
+df_hulk %>%
+  mutate(ride_id = row_number()) %>%
+  gather("startORend", "time", 1:2) %>%
+  arrange(ride_id) %>%
+  ggplot(aes(time, ride_id, color=as.character(ride_id))) + 
+  geom_point() + 
+  geom_line() +
+  guides(color=FALSE) +
+  labs(x="Time", 
+     y="Ride ID", 
+     title="Ride start and end times for Hulk before 6AM")
+
+
+
+```
+
+
+
+``` {r}
 
 df_u <- df %>% 
   select(car_id, start_time, end_time, ride_mins, num_riders) %>%

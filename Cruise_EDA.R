@@ -100,44 +100,7 @@ df_times <- df %>%
   gather("startORend", "time", 1:2) %>%
   arrange(ride_id)
 
-ggplot(df_times, aes(time, ride_id, color=startORend)) + geom_point()
-
-df %>% 
-  filter(car_id == "hulk") %>%
-  filter(start_time < ymd_hms("2018-10-02 6:00:00")) %>%
-  select(start_time, end_time, ride_mins, num_riders) %>%
-  arrange(start_time)
-     
-df %>%
-  filter(car_id == "hulk") %>%
-  #filter(start_time < ymd_hms("2018-10-02 6:00:00")) %>%
-  arrange(start_time) %>%
-  ggplot(aes(start_time, as.numeric(num_riders))) + geom_step()
-
-df %>% 
-  select(car_id, num_riders, start_time, end_time) %>%
-  gather("startORend", "time", start_time, end_time) %>%
-  arrange(car_id, time) %>%
-  ggplot(aes(time)) + geom_freqpoly(bins=12)
-
-
-#############
-# Utilization
-
-df_u <- df %>% 
-  select(car_id, start_time, end_time, num_riders) %>%
-  arrange(car_id)
-
-car_id <- df_u$car_id
-start_time <- df_u$start_time
-end_time <- df_u$end_time
-num_riders <- df_u$num_riders
-
-durations <- c()
-
-for (i in 1:nrow(df)) {
-  
-}
+ggplot(df_times, aes(time, ride_id, color=startORend)) + geom_point() + scale_fill_brewer(palette="Set1")
 
 
 
