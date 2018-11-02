@@ -276,7 +276,7 @@ df_hulk %>%
 
 # print table of first 5 rides
 kable(head(mutate(df_hulk, ride_mins = round(ride_mins))), booktabs = TRUE,
-      caption="Superman has three quarters of the near misses")
+      caption="Rides overlap, and it's not clear how # riders changes")
 
 
 
@@ -409,7 +409,7 @@ df_hulk2 %>%
 
 # print table of first 5 rides
 kable(head(mutate(df_hulk2, ride_mins = round(ride_mins))), booktabs = TRUE,
-      caption="Superman has three quarters of the near misses")
+      caption="Trips are now flattened with a average # riders")
 
 # visualize the Hulk average number of riders for a limited time period 
 ggplot(df_hulk2, aes(start_time, num_riders)) + 
